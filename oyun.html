@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geliştirilmiş Yakal Kaç Oyunu</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #f0f4f7;
+        }
+        canvas {
+            display: block;
+            background: #ffffff;
+        }
+        #scoreboard, #timer, #highScore {
+            position: absolute;
+            top: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 20px;
+            color: #333;
+        }
+        #scoreboard {
+            left: 10px;
+        }
+        #timer {
+            left: 150px;
+        }
+        #highScore {
+            left: 300px;
+        }
+        #startScreen, #endScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-family: Arial, sans-serif;
+            font-size: 30px;
+            color: #333;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        #restartButton {
+            margin-top: 10px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #00796b;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #restartButton:hover {
+            background-color: #004d40;
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+        Oyun Başlıyor! <br>
+        Başlamak için tıklayın
+    </div>
+    <div id="endScreen" style="display: none;">
+        Oyun Bitti! <br>
+        Puanınız: <span id="finalScore"></span> <br>
+        Yüksek Puan: <span id="highScoreDisplay"></span> <br>
+        <button id="restartButton">Yeniden Oyna</button>
+    </div>
+    <div id="scoreboard">Puan: 0</div>
+    <div id="timer">Süre: 60</div>
+    <div id="highScore">Yüksek Puan: 0</div>
+    <canvas id="gameCanvas"></canvas>
+    <audio id="backgroundMusic" src="https://www.soundjay.com/button/sounds/button-16.mp3" loop></audio>
+    <audio id="collisionSound" src="https://www.soundjay.com/button/sounds/button-10.mp3"></audio>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('scoreboard');
+        const timerElement = document.getElementById('timer');
+        const highScoreElement = document.getElementById('highScore');
+        const music = document.getElementById('backgroundMusic');
+        const collisionSound = document.getElementById('collisionSound');
+        const startScreen = document.getElementById('startScreen');
+        const endScreen = document.getElementById('endScreen');
+        const finalScoreElement = document.getElementById('finalScore');
+        const highScoreDisplayElement = document.getElementById('highScoreDisplay');
+        const restartButton = document.getElementById('restartButton');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            size: 50,
+            color: 'blue',
+            speed: 3
+        };
+
+        const targets = [];
+        const initialTargetsCount = 3;
+        let score = 0;
+        let highScore = localStorage.getItem('highScore') || 0;
+        let timeRemaining = 60; // saniye
+        let gameInterval, timerInterval;
+        let difficultyLevel = 1;
+
+        function createTargets() {
+            targets.length = 0;
+            for (let i = 0; i < initialTargetsCount; i++) {
+                targets.push({
+                    x: Math.random() * (canvas.width - 30),
+                    y: Math.random() * (canvas.height - 30),
+                    size: 30,
+                    color: i % 2 === 0 ? 'red' : 'green',
+                    speed: 1.5 + difficultyLevel * 0.5,
+                    special: i % 2 === 1
+                });
+            }
+        }
+
+        createTargets();
+
+        function drawPlayer() {
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.size, player.size);
+        }
+
+        function drawTargets() {
+            targets.forEach(target => {
+                ctx.fillStyle = target.color;
+                ctx.beginPath();
+                ctx.arc(target.x + target.size / 2, target.y + target.size / 2, target.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function movePlayer() {
+            const dx = mouse.x - (player.x + player.size / 2);
+            const dy = mouse.y - (player.y + player.size / 2);
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance > 0) {
+                player.x += (dx / distance) * player.speed;
+                player.y += (dy / distance) * player.speed;
+            }
+        }
+
+        function moveTargets() {
+            targets.forEach(target => {
+                target.x += target.speed;
+                if (target.x < 0 || target.x + target.size > canvas.width) {
+                    target.speed *= -1;
+                }
+                target.y += target.speed;
+                if (target.y < 0 || target.y + target.size > canvas.height) {
+                    target.speed *= -1;
+                }
+            });
+        }
+
+        function checkCollision() {
+            targets.forEach(target => {
+                if (player.x < target.x + target.size &&
+                    player.x + player.size > target.x &&
+                    player.y < target.y + target.size &&
+                    player.y + player.size > target.y) {
+                    score += target.special ? 30 : 5; // Puan kazanma zorluğu artırıldı
+                    scoreElement.textContent = 'Puan: ' + score;
+                    collisionSound.play();
+                    target.x = Math.random() * (canvas.width - target.size);
+                    target.y = Math.random() * (canvas.height - target.size);
+                    // Zorluk artırma
+                    if (score % 100 === 0) {
+                        difficultyLevel++;
+                        targets.forEach(t => {
+                            t.speed = 1.5 + difficultyLevel * 0.5;
+                            t.size = 30 + difficultyLevel * 5;
+                        });
+                        if (targets.length < 10) {
+                            createTargets(); // Daha fazla hedef ekle
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateTimer() {
+            timeRemaining -= 1;
+            timerElement.textContent = 'Süre: ' + timeRemaining;
+            if (timeRemaining <= 0) {
+                endGame();
+            }
+        }
+
+        function endGame() {
+            clearInterval(timerInterval);
+            clearInterval(gameInterval);
+            music.pause();
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('highScore', highScore);
+            }
+            finalScoreElement.textContent = score;
+            highScoreDisplayElement.textContent = highScore;
+            endScreen.style.display = 'block';
+        }
+
+        function startGame() {
+            startScreen.style.display = 'none';
+            music.play();
+            gameInterval = setInterval(gameLoop, 1000 / 60);
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function handleTouch(e) {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            mouse.x = touch.clientX - rect.left;
+            mouse.y = touch.clientY - rect.top;
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('touchmove', handleTouch);
+
+        document.getElementById('startScreen').addEventListener('click', startGame);
+        restartButton.addEventListener('click', () => {
+            window.location.reload(); // Sayfayı yenilemek, oyunu tekrar başlatır
+        });
+
+        const mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+
+        function update() {
+            movePlayer();
+            moveTargets();
+            checkCollision();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPlayer();
+            drawTargets();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+        }
+    </script>
+</body>
+</html>
